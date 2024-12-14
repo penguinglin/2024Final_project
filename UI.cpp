@@ -33,7 +33,20 @@ void UI::init()
 	int tl_x = DC->game_field_length + bagitem_img_left_padding;
 	int tl_y = bagitem_img_top_padding;
 	int max_height = 0;
-
+	for (size_t i = 0; i < (size_t)(InventoryType::INVENTORYTYPE_MAX); ++i) {
+		ALLEGRO_BITMAP * bitmap = IC->get(InventorySetting::inventory_full_img_path[i]);
+		int w = al_get_bitmap_width(bitmap);
+		int h = al_get_bitmap_height(bitmap);
+		if (tl_x + w > DC->window_width)
+		{
+            tl_x = DC->game_field_length + bagitem_img_left_padding;
+            tl_y += max_height + bagitem_img_top_padding;
+            max_height = 0;
+        }
+		inventory[bitmap] = InventorySetting::item_init_num[i];
+		tl_x += w + bagitem_img_left_padding;
+		max_height = std::max(max_height, h);
+	}
 	// arrange item shop
 	for (size_t i = 0; i < (size_t)(TowerType::TOWERTYPE_MAX); ++i)
 	{
@@ -170,9 +183,6 @@ void UI::draw()
 
 	// draw time bar
 	const int &player_timer = DC->player->timer;
-	// 設定通用的 padding
-	const int top_padding = love_img_padding;
-	const int text_line_height = 20; // 每行文字間隔高度
 	al_draw_textf(
 			FC->courier_new[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
 			game_field_length + love_img_padding, love_img_padding,
@@ -195,30 +205,73 @@ void UI::draw()
 	// draw a talking box under the window
 	al_draw_filled_rectangle(0.f, 670.0f, 900.0f, 720.0f, al_map_rgba(50, 50, 50, 70));
 
-	for (auto &[bitmap, p, price] : tower_items)
-	{
-		int w = al_get_bitmap_width(bitmap);
-		int h = al_get_bitmap_height(bitmap);
 
-		// 調整 y 座標以加入偏移量
-		int draw_x = p.x;									// 保持 x 不變
-		int draw_y = p.y + shop_offset_y; // 加入垂直偏移量
+	const int item_size = 64;      // Fixed size for inventory slots
+    const int margin_x = 15;       // Horizontal margin between items
+    const int margin_y = 30;       // Vertical margin between rows
+    const int start_x = 915;       // Starting X position
+    const int start_y = 80;        // Starting Y position
+    const int max_row_width = 150; // Maximum width for a row before wrapping
 
-		// 繪製塔的圖片
-		al_draw_bitmap(bitmap, draw_x, draw_y, 0);
+    int current_x = start_x;
+    int current_y = start_y;
 
-		// 繪製塔的邊框
-		al_draw_rectangle(
-				draw_x - 1, draw_y - 1,
-				draw_x + w + 1, draw_y + h + 1,
-				al_map_rgb(0, 0, 0), 1);
+    for (const auto& [item, count] : inventory) {
+        if (!item || count <= 0) continue; // Skip invalid items or those with zero count
 
-		// 繪製塔的價格
-		al_draw_textf(
-				FC->courier_new[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
-				draw_x + w / 2, draw_y + h,
-				ALLEGRO_ALIGN_CENTRE, "%d", price);
-	}
+        // Get the item's dimensions
+        int w = al_get_bitmap_width(item);
+        int h = al_get_bitmap_height(item);
+
+        // Draw the scaled bitmap
+        al_draw_scaled_bitmap(item, 0, 0, w, h, current_x, current_y, item_size, item_size, 0);
+
+        // Draw a border around the item for visibility
+        al_draw_rectangle(
+            current_x - 1, current_y - 1,
+            current_x + item_size + 1, current_y + item_size + 1,
+            al_map_rgb(0, 0, 0), 1);
+
+        // Draw the count below the item
+        al_draw_textf(
+            FC->courier_new[FontSize::MEDIUM], al_map_rgb(255, 255, 255),
+            current_x + item_size / 2, current_y + item_size + 5, // Text position
+            ALLEGRO_ALIGN_CENTER, "x%d", count);
+
+        // Move to the next slot
+        current_x += item_size + margin_x;
+
+        // Wrap to the next row if the current row exceeds `max_row_width`
+        if (current_x > start_x + max_row_width) {
+            current_x = start_x;       // Reset to the start of the row
+            current_y += item_size + margin_y; // Move down to the next row
+        }
+    }
+
+	// for (auto &[bitmap, p, price] : tower_items)
+	// {
+	// 	int w = al_get_bitmap_width(bitmap);
+	// 	int h = al_get_bitmap_height(bitmap);
+
+	// 	// 調整 y 座標以加入偏移量
+	// 	int draw_x = p.x;											// 保持 x 不變
+	// 	int draw_y = p.y + shop_offset_y * 2; // 加入垂直偏移量
+
+	// 	// 繪製塔的圖片
+	// 	al_draw_bitmap(bitmap, draw_x, draw_y, 0);
+
+	// 	// 繪製塔的邊框
+	// 	al_draw_rectangle(
+	// 			draw_x - 1, draw_y - 1,
+	// 			draw_x + w + 1, draw_y + h + 1,
+	// 			al_map_rgb(0, 0, 0), 1);
+
+	// 	// 繪製塔的價格
+	// 	al_draw_textf(
+	// 			FC->courier_new[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+	// 			draw_x + w / 2, draw_y + h,
+	// 			ALLEGRO_ALIGN_CENTRE, "%d", price);
+	// }
 
 	switch (state)
 	{
@@ -238,6 +291,7 @@ void UI::draw()
 		auto &[bitmap, p, price] = tower_items[on_item];
 		int w = al_get_bitmap_width(bitmap);
 		int h = al_get_bitmap_height(bitmap);
+
 		// Create a semitransparent mask covered on the hovered tower.
 		al_draw_filled_rectangle(p.x, p.y + shop_offset_y, p.x + w, p.y + h + shop_offset_y, al_map_rgba(50, 50, 50, 64));
 		break;
@@ -266,4 +320,44 @@ void UI::draw()
 		break;
 	}
 	}
+}
+
+void UI::add_to_inventory(ALLEGRO_BITMAP* item, int count) {
+    if (inventory.find(item) != inventory.end()) {
+        inventory[item] += count; // Increment count if item already exists
+    } else {
+        inventory[item] = count; // Add new item with its count
+    }
+}
+
+void UI::update_inventory(ALLEGRO_BITMAP* item, int count) {
+    if (inventory.find(item) != inventory.end()) {
+        inventory[item] += count; // Update item count
+        if (inventory[item] <= 0) {
+            inventory.erase(item); // Remove item if count is zero or negative
+        }
+    }
+}
+
+void UI::render_inventory() {
+    const int margin = 10;        // Margin between items
+    const int item_size = 64;     // Fixed size for inventory slots
+    int x = 900;                  // Starting X position for sidebar
+    int y = 30;                   // Starting Y position for items
+    FontCenter* FC = FontCenter::get_instance(); // Assume FontCenter for text rendering
+
+    for (const auto& [item, count] : inventory) {
+        // Draw item image
+        al_draw_scaled_bitmap(item, 0, 0, 
+                              al_get_bitmap_width(item), al_get_bitmap_height(item), 
+                              x, y, item_size, item_size, 
+                              0);
+
+        // Draw item count
+        al_draw_textf(FC->courier_new[FontSize::MEDIUM], al_map_rgb(255, 255, 255),
+                      x + item_size + margin, y + item_size / 2,
+                      ALLEGRO_ALIGN_LEFT, "x%d", count);
+
+        y += item_size + margin; // Move to the next slot
+    }
 }

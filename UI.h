@@ -5,6 +5,8 @@
 #include <vector>
 #include <tuple>
 #include "./shapes/Point.h"
+#include "./inventory/inventory.h"
+#include <map>
 
 class UI
 {
@@ -13,6 +15,9 @@ public:
 	void init();
 	void update();
 	void draw();
+	void add_to_inventory(ALLEGRO_BITMAP* item, int count = 1);
+    void update_inventory(ALLEGRO_BITMAP* item, int count);
+    void render_inventory();
 
 private:
 	enum class STATE
@@ -26,6 +31,7 @@ private:
 	ALLEGRO_BITMAP *love;
 	// tower menu bitmap, (top-left x, top-left y), price
 	std::vector<std::tuple<ALLEGRO_BITMAP *, Point, int>> tower_items;
+	std::map<ALLEGRO_BITMAP*, int> inventory;
 	int on_item;
 };
 

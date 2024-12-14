@@ -6,3 +6,5 @@ assets/sound
 # assets/sound/*.ogg
 # assets/sound/*.mp3
 assets/images/chara
+game.exe
+*.log
