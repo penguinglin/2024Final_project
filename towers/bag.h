@@ -15,12 +15,11 @@ enum class ItemType
 	ax,
 	wood,
 	torch,
-	meat,
 	meat_raw,
+	meat,
 	meat_many,
 	meat_some,
 	// meat_raw_some,
-
 	// meat_raw_many,
 	ITEMTYPE_MAX
 };
@@ -30,8 +29,8 @@ namespace ItemSetting
 			"./assets/image/item/ax.png",				 // 斧頭
 			"./assets/image/item/wood.png",			 // 木頭
 			"./assets/image/item/torch.png",		 // 火柴
-			"./assets/image/item/meat.png",			 // 熟肉- 還未使用
 			"./assets/image/item/meat_raw.png",	 // 生肉- 還未使用
+			"./assets/image/item/meat.png",			 // 熟肉- 還未使用
 			"./assets/image/item/meat_many.png", // 熟肉 - 使用第一次
 			"./assets/image/item/meat_some.png", // 熟肉 - 使用二次
 			// "./assets/image/item/meat_raw_some.png",
@@ -41,9 +40,9 @@ namespace ItemSetting
 	const std::array<std::string, static_cast<int>(ItemType::ITEMTYPE_MAX)> item_menu = {
 			"ax",
 			"wood",
-			"torch",
-			"meat", // 火柴
+			"torch", // 火柴
 			"meat_raw",
+			"meat",
 			"meat_many",
 			"meat_some",
 			// "meat_raw_some",

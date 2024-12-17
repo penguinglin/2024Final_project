@@ -8,6 +8,7 @@
 #include <allegro5/allegro_image.h>
 #include <allegro5/allegro_acodec.h>
 #include "UI.h"
+// int first_time_play_game;
 
 class Game
 {
@@ -81,15 +82,15 @@ private:
 		Back
 	};
 
-	GameState_fire fire_state = GameState_fire::NOFIRE;
-	GameState_boat boat_state = GameState_boat::BROKENBOAT;
-	ButtonState buttonstate = ButtonState::NOTHING;
-	Info_Button info_button = Info_Button::Nothing;
-	Control_Button control_button = Control_Button::Nothing;
+	GameState_fire fire_state;
+	GameState_boat boat_state;
+	ButtonState buttonstate;
+	Info_Button info_button;
+	Control_Button control_button;
 	ALLEGRO_EVENT event;
 	ALLEGRO_BITMAP *game_icon;
 	ALLEGRO_BITMAP *background;
-	STATE state = STATE::START;
+	STATE state;
 
 private:
 	ALLEGRO_DISPLAY *display;

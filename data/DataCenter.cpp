@@ -29,6 +29,7 @@ DataCenter::DataCenter()
 	mouse = Point(0, 0);
 	memset(mouse_state, false, sizeof(mouse_state));
 	memset(prev_mouse_state, false, sizeof(prev_mouse_state));
+
 	player = new Player();
 	level = new Level();
 	playerControl = new PlayerControl();

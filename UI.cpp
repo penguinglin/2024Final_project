@@ -9,10 +9,14 @@
 #include "shapes/Point.h"
 #include "shapes/Rectangle.h"
 #include "Player.h"
-#include "towers/Tower.h"
+#include "Player_control.h"
+// #include "towers/Tower.h"
 #include "Level.h"
 #include "towers/bag.h"
 #include <vector>
+#include <iostream>
+#include <utility>
+#include "global.h"
 
 // fixed settings
 constexpr char love_img_path[] = "./assets/image/love.png";
@@ -24,6 +28,11 @@ constexpr int shop_offset_y = 30;
 // 設定通用的 padding
 const int top_padding = love_img_padding;
 const int text_line_height = 20; // 每行文字間隔高度
+// 生肉熟肉切換
+bool meat = false;
+int set_hint = 1;
+// set timer for 2 second
+int set_timer = 120;
 
 void UI::init()
 {
@@ -35,9 +44,9 @@ void UI::init()
 	int max_height = 0;
 
 	// arrange item shop
-	for (size_t i = 0; i < (size_t)(TowerType::TOWERTYPE_MAX); ++i)
+	for (size_t i = 0; i < (size_t)(ItemType::ITEMTYPE_MAX); ++i)
 	{
-		ALLEGRO_BITMAP *bitmap = IC->get(TowerSetting::tower_menu_img_path[i]);
+		ALLEGRO_BITMAP *bitmap = IC->get(ItemSetting::item_menu_img_path[i]);
 		int w = al_get_bitmap_width(bitmap);
 		int h = al_get_bitmap_height(bitmap);
 		if (tl_x + w > DC->window_width)
@@ -46,7 +55,7 @@ void UI::init()
 			tl_y += max_height + bagitem_img_top_padding;
 			max_height = 0;
 		}
-		tower_items.emplace_back(bitmap, Point{tl_x, tl_y}, TowerSetting::tower_price[i]);
+		bag_item.emplace_back(bitmap, Point{tl_x, tl_y}, std::make_pair(i, ItemSetting::have[i]));
 		tl_x += w + bagitem_img_left_padding;
 		max_height = std::max(max_height, h);
 	}
@@ -64,13 +73,13 @@ void UI::update()
 	{
 	case STATE::HALT:
 	{
-		for (size_t i = 0; i < tower_items.size(); ++i)
+		for (size_t i = 0; i < bag_item.size(); ++i)
 		{
-			auto &[bitmap, p, price] = tower_items[i];
+			auto &[bitmap, p, count] = bag_item[i];
 			int w = al_get_bitmap_width(bitmap);
 			int h = al_get_bitmap_height(bitmap);
 			// hover on a shop tower item
-			if (mouse.overlap(Rectangle{p.x, p.y + text_line_height, p.x + w, p.y + h + text_line_height}))
+			if (mouse.overlap(Rectangle{p.x, p.y, p.x + w, p.y + h}))
 			{
 				on_item = i;
 				debug_log("<UI> state: change to HOVER\n");
@@ -82,7 +91,7 @@ void UI::update()
 	}
 	case STATE::HOVER:
 	{
-		auto &[bitmap, p, price] = tower_items[on_item];
+		auto &[bitmap, p, count] = bag_item[on_item];
 		int w = al_get_bitmap_width(bitmap);
 		int h = al_get_bitmap_height(bitmap);
 		if (!mouse.overlap(Rectangle{p.x, p.y + text_line_height, p.x + w, p.y + h + text_line_height}))
@@ -96,9 +105,14 @@ void UI::update()
 		if (DC->mouse_state[1] && !DC->prev_mouse_state[1])
 		{
 			// no money
-			if (price > DC->player->coin)
+			// if (price > DC->player->coin)
+			// {
+			// 	debug_log("<UI> Not enough money to buy tower %d.\n", on_item);
+			// 	break;
+			// }
+			if (count.second == 0)
 			{
-				debug_log("<UI> Not enough money to buy tower %d.\n", on_item);
+				debug_log("<UI> Don't have the item %d.\n", on_item);
 				break;
 			}
 			debug_log("<UI> state: change to SELECT\n");
@@ -126,26 +140,35 @@ void UI::update()
 	case STATE::USE:
 	{
 		// check USEment legality
-		ALLEGRO_BITMAP *bitmap = Tower::get_bitmap(static_cast<TowerType>(on_item));
-		int w = al_get_bitmap_width(bitmap);
-		int h = al_get_bitmap_height(bitmap);
-		Rectangle USE_region{mouse.x - w / 2, mouse.y - h / 2, DC->mouse.x + w / 2, DC->mouse.y + h / 2};
-		bool USE = true;
-		// tower cannot be USEd on the road
-		USE &= (!DC->level->is_onroad(USE_region));
-		// tower cannot intersect with other towers
-		for (Tower *tower : DC->towers)
+		// ALLEGRO_BITMAP *bitmap = Tower::get_bitmap(static_cast<TowerType>(on_item));
+		// int w = al_get_bitmap_width(bitmap);
+		// int h = al_get_bitmap_height(bitmap);
+		// Rectangle USE_region{mouse.x - w / 2, mouse.y - h / 2, DC->mouse.x + w / 2, DC->mouse.y + h / 2};
+		// bool USE = true;
+		// // tower cannot be USEd on the road
+		// USE &= (!DC->level->is_onroad(USE_region));
+		// // tower cannot intersect with other towers
+		// for (Tower *tower : DC->towers)
+		// {
+		// 	USE &= (!USE_region.overlap(tower->get_region()));
+		// }
+		// if (!USE)
+		// {
+		// 	debug_log("<UI> Tower USE failed.\n");
+		// }
+		// else
+		// {
+		// 	DC->towers.emplace_back(Tower::create_tower(static_cast<TowerType>(on_item), mouse));
+		// 	DC->player->coin -= std::get<2>(tower_items[on_item]);
+		// }
+		auto &[bitmap, p, count] = bag_item[on_item];
+		if (on_item != 0)
 		{
-			USE &= (!USE_region.overlap(tower->get_region()));
-		}
-		if (!USE)
-		{
-			debug_log("<UI> Tower USE failed.\n");
-		}
-		else
-		{
-			DC->towers.emplace_back(Tower::create_tower(static_cast<TowerType>(on_item), mouse));
-			DC->player->coin -= std::get<2>(tower_items[on_item]);
+			if (count.first == 3 && count.second == 3 && meat == false)
+				meat = true;
+			else
+				count.second--;
+			UI::draw();
 		}
 		debug_log("<UI> state: change to HALT\n");
 		state = STATE::HALT;
@@ -159,6 +182,8 @@ void UI::draw()
 	DataCenter *DC = DataCenter::get_instance();
 	FontCenter *FC = FontCenter::get_instance();
 	const Point &mouse = DC->mouse;
+	al_draw_filled_rectangle(DC->game_field_length, 0, DC->window_width, DC->window_height, al_map_rgb(100, 100, 100));
+
 	// draw HP
 	const int &game_field_length = DC->game_field_length;
 	// const int &player_HP = DC->player->HP;
@@ -178,13 +203,6 @@ void UI::draw()
 			game_field_length + love_img_padding, love_img_padding,
 			ALLEGRO_ALIGN_LEFT, "Time: %5d", player_timer);
 
-	// // draw coin
-	// const int &player_coin = DC->player->coin;
-	// al_draw_textf(
-	//     FC->courier_new[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
-	//     game_field_length + love_img_padding, top_padding + text_line_height,
-	//     ALLEGRO_ALIGN_LEFT, "coin: %5d", player_coin);
-
 	// draw player hungry
 	const int &player_hungry = DC->player->hungry;
 	al_draw_textf(
@@ -193,9 +211,84 @@ void UI::draw()
 			ALLEGRO_ALIGN_LEFT, "hungry: %3d", player_hungry);
 
 	// draw a talking box under the window
-	al_draw_filled_rectangle(0.f, 670.0f, 900.0f, 720.0f, al_map_rgba(50, 50, 50, 70));
+	al_draw_filled_rectangle(0.f, 670.0f, 900.0f, 720.0f, al_map_rgba(20, 20, 20, 70));
+	switch (DC->playerControl->global_change_hint)
+	{
+	case 0: // nothing
+	{
+		break;
+	}
+	case 1: // get close to the wood
+	{
+		al_draw_text(
+				FC->caviar_dreams[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+				400.0f, 550.0f,
+				ALLEGRO_ALIGN_CENTRE, "There are woods, you can get some if you want.");
 
-	for (auto &[bitmap, p, price] : tower_items)
+		break;
+	}
+	case 2: // get close to the fire
+	{
+		if (DC->player->Get_fire == false)
+			al_draw_text(
+					FC->caviar_dreams[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+					400.0f, 550.0f,
+					ALLEGRO_ALIGN_CENTRE, "Get something to let it warm.");
+		else
+		{
+			al_draw_text(
+					FC->caviar_dreams[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+					400.0f, 550.0f,
+					ALLEGRO_ALIGN_CENTRE, "That's sooooooo nice!.");
+		}
+
+		break;
+	}
+	case 3: // get close to the boat
+	{
+		if (first_time_play_game)
+		{
+			al_draw_text(
+					FC->caviar_dreams[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+					400.0f, 550.0f,
+					ALLEGRO_ALIGN_CENTRE, "......????");
+		}
+		else if (DC->player->Fixboat == false)
+			al_draw_text(
+					FC->caviar_dreams[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+					400.0f, 550.0f,
+					ALLEGRO_ALIGN_CENTRE, "You need something to fix it.");
+		else
+		{
+			al_draw_text(
+					FC->caviar_dreams[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+					400.0f, 550.0f,
+					ALLEGRO_ALIGN_CENTRE, "You can leave now.Or look around?");
+		}
+		break;
+	}
+	case 4: // get close to two slide
+	{
+		al_draw_text(
+				FC->caviar_dreams[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+				400.0f, 550.0f,
+				ALLEGRO_ALIGN_CENTRE, "Do you want to look more?.");
+
+		break;
+	}
+	case 5:
+	{
+		al_draw_text(
+				FC->caviar_dreams[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+				400.0f, 550.0f,
+				ALLEGRO_ALIGN_CENTRE, "You can leave now.Or look around?");
+		break;
+	}
+	default:
+		break;
+	}
+
+	for (auto &[bitmap, p, count] : bag_item)
 	{
 		int w = al_get_bitmap_width(bitmap);
 		int h = al_get_bitmap_height(bitmap);
@@ -204,20 +297,83 @@ void UI::draw()
 		int draw_x = p.x;									// 保持 x 不變
 		int draw_y = p.y + shop_offset_y; // 加入垂直偏移量
 
-		// 繪製塔的圖片
-		al_draw_bitmap(bitmap, draw_x, draw_y, 0);
+		if (count.second != 0)
+		{
+			if (count.first == 3 && count.second == 3 && meat == true)
+			{
+				auto &[_bitmap, _p, _count] = bag_item[4];
+				int w = al_get_bitmap_width(_bitmap);
+				int h = al_get_bitmap_height(_bitmap);
+				al_draw_bitmap(_bitmap, draw_x, draw_y, 0);
+				al_draw_rectangle(
+						draw_x - 1, draw_y - 1,
+						draw_x + w + 1, draw_y + h + 1,
+						al_map_rgb(0, 0, 0), 1);
+				al_draw_textf(
+						FC->courier_new[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+						draw_x + w / 2, draw_y + h,
+						ALLEGRO_ALIGN_CENTRE, "%d", count.second);
+			}
+			else if (count.first == 3 && count.second == 2 && meat == true)
+			{
+				auto &[_bitmap, _p, _count] = bag_item[5];
+				int w = al_get_bitmap_width(_bitmap);
+				int h = al_get_bitmap_height(_bitmap);
+				al_draw_bitmap(_bitmap, draw_x, draw_y, 0);
+				al_draw_rectangle(
+						draw_x - 1, draw_y - 1,
+						draw_x + w + 1, draw_y + h + 1,
+						al_map_rgb(0, 0, 0), 1);
+				al_draw_textf(
+						FC->courier_new[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+						draw_x + w / 2, draw_y + h,
+						ALLEGRO_ALIGN_CENTRE, "%d", count.second);
+			}
+			else if (count.first == 3 && count.second == 1 && meat == true)
+			{
+				auto &[_bitmap, _p, _count] = bag_item[6];
+				int w = al_get_bitmap_width(_bitmap);
+				int h = al_get_bitmap_height(_bitmap);
+				al_draw_bitmap(_bitmap, draw_x, draw_y, 0);
+				al_draw_rectangle(
+						draw_x - 1, draw_y - 1,
+						draw_x + w + 1, draw_y + h + 1,
+						al_map_rgb(0, 0, 0), 1);
+				al_draw_textf(
+						FC->courier_new[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+						draw_x + w / 2, draw_y + h,
+						ALLEGRO_ALIGN_CENTRE, "%d", count.second);
+			}
+			else
+			{
+				int w = al_get_bitmap_width(bitmap);
+				int h = al_get_bitmap_height(bitmap);
+				al_draw_bitmap(bitmap, draw_x, draw_y, 0);
+				al_draw_rectangle(
+						draw_x - 1, draw_y - 1,
+						draw_x + w + 1, draw_y + h + 1,
+						al_map_rgb(0, 0, 0), 1);
+				al_draw_textf(
+						FC->courier_new[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+						draw_x + w / 2, draw_y + h,
+						ALLEGRO_ALIGN_CENTRE, "%d", count.second);
+			}
+		}
 
-		// 繪製塔的邊框
-		al_draw_rectangle(
-				draw_x - 1, draw_y - 1,
-				draw_x + w + 1, draw_y + h + 1,
-				al_map_rgb(0, 0, 0), 1);
+		// // 繪製塔的圖片
+		// al_draw_bitmap(bitmap, draw_x, draw_y, 0);
 
-		// 繪製塔的價格
-		al_draw_textf(
-				FC->courier_new[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
-				draw_x + w / 2, draw_y + h,
-				ALLEGRO_ALIGN_CENTRE, "%d", price);
+		// // 繪製塔的邊框
+		// al_draw_rectangle(
+		// 		draw_x - 1, draw_y - 1,
+		// 		draw_x + w + 1, draw_y + h + 1,
+		// 		al_map_rgb(0, 0, 0), 1);
+
+		// // 繪製塔的價格
+		// al_draw_textf(
+		// 		FC->courier_new[FontSize::MEDIUM], al_map_rgb(0, 0, 0),
+		// 		draw_x + w / 2, draw_y + h,
+		// 		ALLEGRO_ALIGN_CENTRE, "%d", price);
 	}
 
 	switch (state)
@@ -235,34 +391,37 @@ void UI::draw()
 	}
 	case STATE::HOVER:
 	{
-		auto &[bitmap, p, price] = tower_items[on_item];
-		int w = al_get_bitmap_width(bitmap);
-		int h = al_get_bitmap_height(bitmap);
-		// Create a semitransparent mask covered on the hovered tower.
-		al_draw_filled_rectangle(p.x, p.y + shop_offset_y, p.x + w, p.y + h + shop_offset_y, al_map_rgba(50, 50, 50, 64));
+		auto &[bitmap, p, count] = bag_item[on_item];
+		if (count.second != 0)
+		{
+			int w = al_get_bitmap_width(bitmap);
+			int h = al_get_bitmap_height(bitmap);
+			// Create a semitransparent mask covered on the hovered tower.
+			al_draw_filled_rectangle(p.x, p.y + shop_offset_y, p.x + w, p.y + h + shop_offset_y, al_map_rgba(50, 50, 50, 64));
+		}
 		break;
 	}
 	case STATE::SELECT:
 	{
-		// If a tower is selected, we new a corresponding tower for previewing purpose.
-		if (selected_tower == nullptr)
-		{
-			selected_tower = Tower::create_tower(static_cast<TowerType>(on_item), mouse);
-		}
-		else
-		{
-			selected_tower->shape->update_center_x(mouse.x);
-			selected_tower->shape->update_center_y(mouse.y);
-		}
+		// // If a tower is selected, we new a corresponding tower for previewing purpose.
+		// if (selected_tower == nullptr)
+		// {
+		// 	selected_tower = Tower::create_tower(static_cast<TowerType>(on_item), mouse);
+		// }
+		// else
+		// {
+		// 	selected_tower->shape->update_center_x(mouse.x);
+		// 	selected_tower->shape->update_center_y(mouse.y);
+		// }
 	}
 	case STATE::USE:
 	{
-		// If we select a tower from menu, we need to preview where the tower will be built and its attack range.
-		ALLEGRO_BITMAP *bitmap = Tower::get_bitmap(static_cast<TowerType>(on_item));
-		al_draw_filled_circle(mouse.x, mouse.y, selected_tower->attack_range(), al_map_rgba(255, 0, 0, 32));
-		int w = al_get_bitmap_width(bitmap);
-		int h = al_get_bitmap_height(bitmap);
-		al_draw_bitmap(bitmap, mouse.x - w / 2, mouse.y - h / 2, 0);
+		// // If we select a tower from menu, we need to preview where the tower will be built and its attack range.
+		// ALLEGRO_BITMAP *bitmap = Tower::get_bitmap(static_cast<TowerType>(on_item));
+		// al_draw_filled_circle(mouse.x, mouse.y, selected_tower->attack_range(), al_map_rgba(255, 0, 0, 32));
+		// int w = al_get_bitmap_width(bitmap);
+		// int h = al_get_bitmap_height(bitmap);
+		// al_draw_bitmap(bitmap, mouse.x - w / 2, mouse.y - h / 2, 0);
 		break;
 	}
 	}

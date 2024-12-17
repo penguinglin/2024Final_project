@@ -1,0 +1,1 @@
+extern int first_time_play_game;

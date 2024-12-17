@@ -7,8 +7,7 @@ OBJ := $(patsubst %.cpp, %.o, $(notdir $(SOURCE)))
 RM_OBJ := 
 RM_OUT := 
 
-PACMAN_SOURCE := pacman.cpp
-PACMAN_OUT := pacman
+
 
 ifeq ($(OS), Windows_NT) # Windows OS
 	ALLEGRO_PATH := ../allegro

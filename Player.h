@@ -13,11 +13,12 @@ public:
 	int coin;
 	int timer;
 	int hungry;
-	bool KILLmonster = false;
-	bool GetMoreTime = false;
-	bool GetFood = false;
-	bool Fix_boat = false;
-	bool Get_fire = false;
+	bool KILLmonster;
+	bool GetMoreTime;
+	bool GetFood;
+	bool GetWood;
+	bool Fixboat;
+	bool Get_fire;
 
 private:
 	int x, y;

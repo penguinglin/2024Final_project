@@ -41,11 +41,12 @@ Player::Player() : HP(PlayerSetting::init_HP), coin(PlayerSetting::init_coin), t
 void Player::init()
 {
 	// TODO CHECK THE INIT OF PLAYER
-	KILLmonster = false;
+	// KILLmonster = false;
 	GetMoreTime = false;
 	GetFood = false;
-	Fix_boat = false;
+	Fixboat = false;
 	Get_fire = false;
+	GetWood = true;
 	precounter = 180;
 	HP = 3;
 	coin = 0;
@@ -63,13 +64,6 @@ void Player::update()
 	else
 	{
 		// precounter = 180;
-		if (coin_counter)
-			--coin_counter;
-		else
-		{
-			coin += coin_increase; // 60 seconds add 5 coins
-			coin_counter = coin_freq;
-		}
 
 		// ADD Timer
 		if (Time_counter)
@@ -79,6 +73,7 @@ void Player::update()
 		else if (GetMoreTime)
 		{
 			timer += Time_increase;
+			GetMoreTime = false;
 		}
 		else if (Time_counter == 0)
 		{
@@ -94,6 +89,7 @@ void Player::update()
 		else if (GetFood)
 		{
 			hungry -= Hungry_decrease;
+			GetFood = false;
 		}
 		else if (Hungry_counter == 0)
 		{

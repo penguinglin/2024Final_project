@@ -8,7 +8,11 @@
 #include "Player.h"
 #include "Player_control.h"
 #include "Level.h"
+// #include "end_circle.h"
 #include <vector>
+#include <algorithm>
+#include "global.h"
+#include <cmath>
 
 #include <cstring>
 
@@ -23,13 +27,17 @@ constexpr char startbg_img_path[] = "./assets/image/MAP_Start.png";
 constexpr char startgamebg_img_path[] = "./assets/image/MAP_Main_Empty.png";
 // info background
 constexpr char infobg_img_path[] = "./assets/image/MAP_Info.png";
+constexpr char good_bg[] = "./assets/image/good_bg.png";
 // control background
 constexpr char controlbg_img_path[] = "./assets/image/MAP_Control.png";
 // game start background sound
 constexpr char background_sound_path[] = "./assets/sound/CountDownBGM.wav";
+constexpr char end_good_sound_path[] = "./assets/sound/Bgm.ogg";
+constexpr char end_bad_sound_path[] = "./assets/sound/death.wav";
 constexpr char init_path[] = "./assets/image/Main_StartEmpty.png";
 static bool BGM_played = false;
 static bool is_played = false;
+static bool is_played2 = false; // goodend music
 
 namespace MenuSetting
 {
@@ -148,16 +156,6 @@ void Game::game_init()
 	FontCenter *FC = FontCenter::get_instance();
 	ImageCenter *IC = ImageCenter::get_instance();
 
-	// // Load texts
-	// for (size_t type = 0; type < static_cast<size_t>(MenuState::MenuState_Max); ++type)
-	// {
-	// 	char buffer[100];
-	// 	sprintf(buffer, "%s/%s.png", MenuSetting::startmenu_img_path, MenuSetting::text_postfix[static_cast<int>(type)]);
-	// 	textPath[static_cast<MenuState>(type)] = std::string{buffer};
-	// }
-	// ImageCenter *IC = ImageCenter::get_instance();
-	// ALLEGRO_BITMAP *menu_item = IC->get(textPath[state]);
-
 	// set window icon
 	game_icon = IC->get(game_icon_img_path);
 	al_set_display_icon(display, game_icon);
@@ -170,10 +168,8 @@ void Game::game_init()
 
 	// init sound setting
 	SC->init();
-
 	// init font setting
 	FC->init();
-
 	ui = new UI();
 	ui->init();
 
@@ -197,7 +193,10 @@ void Game::game_init()
 	buttonstate = ButtonState::NOTHING;
 	fire_state = GameState_fire::NOFIRE;
 	boat_state = GameState_boat::BROKENBOAT;
+	control_button = Control_Button::Nothing;
+	info_button = Info_Button::Nothing;
 	al_start_timer(timer);
+	// DC->player->Fixboat == false;
 }
 
 bool Game::game_update()
@@ -417,7 +416,8 @@ bool Game::game_update()
 	}
 	case STATE::LEVEL:
 	{
-		DC->playerControl->tmp = 4;
+		// print global_change_hint ;
+		debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
 		if (!BGM_played)
 		{
 			background = SC->play(background_sound_path, ALLEGRO_PLAYMODE_LOOP);
@@ -425,30 +425,63 @@ bool Game::game_update()
 			BGM_played = true;
 		}
 		update_background_music(background);
+
+		// FIX Fire
 		if (DC->key_state[ALLEGRO_KEY_1] && !DC->prev_key_state[ALLEGRO_KEY_1])
 		{
+			debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
 			debug_log("<Player> : get fire \n");
 			DC->player->Get_fire = true;
 			fire_state = GameState_fire::FIRE;
 		}
+		// FIX Boat
 		if (DC->key_state[ALLEGRO_KEY_2] && !DC->prev_key_state[ALLEGRO_KEY_2])
 		{
+			debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
 			debug_log("<Player> : fix boat \n");
-			DC->player->Fix_boat = true;
+			DC->player->Fixboat = true;
 			boat_state = GameState_boat::BOAT;
+			first_time_play_game = 0;
 		}
+		// Fast timer
+		if (DC->key_state[ALLEGRO_KEY_3] && !DC->prev_key_state[ALLEGRO_KEY_3])
+		{
+			debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
+			debug_log("<Player> : decrease time \n");
+			DC->player->timer = std::max(0, DC->player->timer - 50);
+			// DC->player->timer = max(0, DC->player->timer - 50);
+		}
+		// Fast hungry
+		if (DC->key_state[ALLEGRO_KEY_4] && !DC->prev_key_state[ALLEGRO_KEY_4])
+		{
+			debug_log("<Player> : increase hungry \n");
+			// DC->player->hungry += 20;
+			DC->player->hungry = std::min(200, DC->player->hungry);
+		}
+
+		// pause
 		if (DC->key_state[ALLEGRO_KEY_P] && !DC->prev_key_state[ALLEGRO_KEY_P])
 		{
 			SC->toggle_playing(background);
 			debug_log("<Game> state: change to PAUSE\n");
 			state = STATE::PAUSE;
 		}
-		if (DC->player->HP == 0)
+		// bad end
+		if (DC->key_state[ALLEGRO_KEY_B] && !DC->prev_key_state[ALLEGRO_KEY_B])
 		{
-			debug_log("<Game> state: change to BADEND\n");
 			al_stop_sample_instance(background);
+			debug_log("<Game> state: change to BADEND\n");
 			state = STATE::BADEND;
 		}
+		// good end
+		if (DC->key_state[ALLEGRO_KEY_G] && !DC->prev_key_state[ALLEGRO_KEY_G])
+		{
+			al_stop_sample_instance(background);
+			debug_log("<Game> state: change to GOODEND\n");
+			state = STATE::GOODEND;
+		}
+
+		// bad end - player die
 		if (DC->player->timer == 0)
 		{
 			debug_log("<Player> lost her time\n");
@@ -463,12 +496,120 @@ bool Game::game_update()
 			al_stop_sample_instance(background);
 			state = STATE::BADEND;
 		}
+
 		// TODO: has a crush problem
 		if (DC->key_state[ALLEGRO_KEY_BACKSPACE] && !DC->prev_key_state[ALLEGRO_KEY_BACKSPACE])
 		{
+
 			debug_log("<Game> state: change to START\n");
 			game_restart(background);
 		}
+
+		// decided the mode to do the switch case
+		switch (DC->playerControl->global_change_hint)
+		{
+		case 0: // nothing
+		{
+			debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
+			break;
+		}
+		case 1: // get closer to the wood
+		{
+			if (DC->key_state[ALLEGRO_KEY_ENTER] && !DC->prev_key_state[ALLEGRO_KEY_ENTER])
+			{
+				// cut one ax
+				DC->player->GetWood == true;
+				debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
+				debug_log("<Player> : get wood \n");
+
+				// TODO modify the bag item => wood =3
+			}
+			break;
+		}
+		case 2: // get closer to the fire
+		{
+			if (DC->key_state[ALLEGRO_KEY_ENTER] && !DC->prev_key_state[ALLEGRO_KEY_ENTER])
+			{
+				// fix the fire
+				if (DC->player->GetWood == true)
+
+				{
+					// make fire and get fire
+					// print dc player hint
+					debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
+					debug_log("<Player> : get fire \n");
+					DC->player->Get_fire = true;
+					fire_state = GameState_fire::FIRE;
+					// DC->player->GetWood = true;
+					DC->player->GetMoreTime = true;
+
+					// TODO modify the bag item => wood = wood -1
+				}
+				else
+				{
+					debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
+					debug_log("<Player> : don't have wood to get fire \n");
+				}
+
+				// DC->player->update(); // update timer
+			}
+			break;
+		}
+		case 3: // get closer to the boat
+		{
+			// debug_log("<Player> : get closer to the boat \n");
+
+			if (DC->key_state[ALLEGRO_KEY_ENTER] && !DC->prev_key_state[ALLEGRO_KEY_ENTER])
+			{
+				// fix the boat
+				if (DC->player->GetWood == true)
+				{
+					// make boat and fix boat
+					debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
+					debug_log("<Player> : fix boat \n");
+					DC->player->Fixboat = true;
+					boat_state = GameState_boat::BOAT;
+					// SWITCHSTATUS();
+					DC->playerControl->global_change_hint = 5;
+					debug_log("after fix boat = %d\n", DC->playerControl->global_change_hint);
+					first_time_play_game = 0;
+
+					// TODO modify the bag item => wood =0
+				}
+				else
+				{
+					debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
+					debug_log("<Player> : don't have wood to fix boat \n");
+				}
+			}
+			break;
+		}
+		case 4: // near the slide
+		{
+			if (DC->key_state[ALLEGRO_KEY_ENTER] && !DC->prev_key_state[ALLEGRO_KEY_ENTER])
+			{
+				// slide
+				debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
+				al_stop_sample_instance(background);
+				debug_log("<Game> state: change to LEVEL\n");
+				state = STATE::BADEND;
+			}
+			break;
+		}
+		case 5: // ok
+		{
+			if (DC->key_state[ALLEGRO_KEY_ENTER] && !DC->prev_key_state[ALLEGRO_KEY_ENTER])
+			{
+				// slide
+				debug_log("global_change_hint = %d\n", DC->playerControl->global_change_hint);
+				al_stop_sample_instance(background);
+				debug_log("<Game> state: change to LEVEL\n");
+				state = STATE::GOODEND;
+			}
+			break;
+		}
+		}
+
 		break;
 	}
 	case STATE::PAUSE:
@@ -483,11 +624,45 @@ bool Game::game_update()
 	}
 	case STATE::GOODEND:
 	{
-		return false;
+		if (!is_played2)
+		{
+			background = SC->play(end_good_sound_path, ALLEGRO_PLAYMODE_LOOP);
+			al_set_sample_instance_gain(background, 0.5);
+			is_played2 = true;
+		}
+		update_background_music(background);
+		if (DC->key_state[ALLEGRO_KEY_BACKSPACE] && !DC->prev_key_state[ALLEGRO_KEY_BACKSPACE])
+		{
+			debug_log("<Game> state: change to START\n");
+			game_restart(background);
+		}
+		if (DC->key_state[ALLEGRO_KEY_ESCAPE] && !DC->prev_key_state[ALLEGRO_KEY_ESCAPE])
+		{
+			debug_log("<Game> state: change to END\n");
+			return false;
+		}
+		break;
 	}
 	case STATE::BADEND:
 	{
-		return false;
+		if (!is_played2)
+		{
+			background = SC->play(end_bad_sound_path, ALLEGRO_PLAYMODE_ONCE);
+			al_set_sample_instance_gain(background, 0.2);
+			is_played2 = true;
+		}
+		update_background_music(background);
+		if (DC->key_state[ALLEGRO_KEY_BACKSPACE] && !DC->prev_key_state[ALLEGRO_KEY_BACKSPACE])
+		{
+			debug_log("<Game> state: change to START\n");
+			game_restart(background);
+		}
+		if (DC->key_state[ALLEGRO_KEY_ESCAPE] && !DC->prev_key_state[ALLEGRO_KEY_ESCAPE])
+		{
+			debug_log("<Game> state: change to END\n");
+			return false;
+		}
+		break;
 	}
 	case STATE::EXIT:
 	{
@@ -706,10 +881,41 @@ void Game::game_draw()
 	}
 	case STATE::BADEND:
 	{
+		// background WITHOUT SCALE
+		al_draw_scaled_bitmap(
+				IC->get(init_path), 0, 0,
+				IC->get_origin_weight(background),
+				IC->get_origin_weight(background),
+				0, 0, 900, 900, 0);
+		al_draw_filled_rectangle(0, 0, DC->window_width, DC->window_height, al_map_rgba(50, 50, 50, 64));
+		al_draw_text(
+				FC->caviar_dreams[FontSize::LARGE], al_map_rgb(255, 255, 255),
+				DC->window_width / 2., DC->window_height / 2.,
+				ALLEGRO_ALIGN_CENTRE, "You lose");
+
 		break;
 	}
 	case STATE::GOODEND:
 	{
+
+		// background WITHOUT SCALE
+		al_draw_scaled_bitmap(
+				IC->get(init_path), 0, 0,
+				IC->get_origin_weight(background),
+				IC->get_origin_weight(background),
+				0, 0, 900, 900, 0);
+		// start the video
+		al_draw_scaled_bitmap(
+				IC->get(good_bg), 0, 0,
+				IC->get_origin_weight(background),
+				IC->get_origin_weight(background),
+				0, 0, 2500, 2400, 0);
+		al_draw_filled_rectangle(0, 0, DC->window_width, DC->window_height, al_map_rgba(50, 50, 50, 64));
+		al_draw_text(
+				FC->caviar_dreams[FontSize::LARGE], al_map_rgb(255, 255, 255),
+				DC->window_width / 2., DC->window_height / 2.,
+				ALLEGRO_ALIGN_CENTRE, "Pass the Game");
+
 		break;
 	}
 	case STATE::EXIT:
@@ -723,6 +929,7 @@ void Game::game_draw()
 
 void Game::game_restart(ALLEGRO_SAMPLE_INSTANCE *background)
 {
+	first_time_play_game = 0;
 	DataCenter *DC = DC->get_instance();
 	DataCenter *SC = SC->get_instance();
 	if (BGM_played)
@@ -731,15 +938,17 @@ void Game::game_restart(ALLEGRO_SAMPLE_INSTANCE *background)
 		BGM_played = false;
 	}
 	is_played = false;
+	is_played2 = false;
+	state = STATE::START;
 	buttonstate = ButtonState::NOTHING;
 	fire_state = GameState_fire::NOFIRE;
 	boat_state = GameState_boat::BROKENBOAT;
-	info_button = Info_Button::Nothing;
 	control_button = Control_Button::Nothing;
-	DC->player->Get_fire = false;
-	DC->player->Fix_boat = false;
+	info_button = Info_Button::Nothing;
+
 	DC->playerControl->init();
-	state = STATE::START;
+	DC->player->init();
+	DC->level->init();
 }
 
 void Game::update_background_music(ALLEGRO_SAMPLE_INSTANCE *background)

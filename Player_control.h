@@ -1,6 +1,7 @@
 #include <string>
 #include <map>
 #include "Object.h"
+// extern int global_change_hint = 0;
 
 enum class PlayerMove
 {
@@ -19,11 +20,13 @@ public:
   void init();
   void update();
   void draw();
+  void SWITCHSTATUS();
   bool move_up = true;
   bool move_down = true;
   bool move_left = true;
   bool move_right = true;
   int tmp = 0;
+  int global_change_hint;
 
   enum class PlayerState
   {
