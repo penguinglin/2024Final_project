@@ -2,7 +2,7 @@
 assets/characters
 assets/level
 assets/maps
-assets/sound
+# assets/sound
 # assets/sound/*.ogg
 # assets/sound/*.mp3
 assets/images/chara
